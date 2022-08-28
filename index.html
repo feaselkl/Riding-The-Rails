@@ -1,0 +1,785 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+		<title>Catallaxy Services | Riding the Rails:  Railway-Oriented Programming with F#</title>
+
+		<link rel="stylesheet" href="../reveal.js/dist/reset.css">
+		<link rel="stylesheet" href="../reveal.js/dist/reveal.css">
+		<link rel="stylesheet" href="../reveal.js/dist/theme/black.css" id="theme">
+		<link rel="stylesheet" href="../WebsiteAssets/mods.css">
+
+		<!-- Theme used for syntax highlighted code -->
+		<link rel="stylesheet" href="../reveal.js/plugin/highlight/monokai.css" id="highlight-theme">
+	</head>
+	<body>
+		<div class="reveal">
+			<div class="slides">
+				<section data-background-image="presentation/assets/image/Bubbles.jpg" data-background-opacity="0.4">
+					<h2>Riding the Rails</h2>
+					<h3>Railway-Oriented Programming with F#</h3>
+					
+					<a href="https://www.catallaxyservices.com">Kevin Feasel</a> (<a href="https://twitter.com/feaselkl">@feaselkl</a>)<br />
+					<a href="https://csmore.info/on/rop">https://csmore.info/on/rop</a>
+				</section>
+				
+				<section data-background-image="presentation/assets/image/Bubbles.jpg" data-background-opacity="0.4">
+					<h3>Who Am I?  What Am I Doing Here?</h3>
+					<div class="container">
+						<div class="col">
+							<table class="whoami">
+								<tr>
+									<td><a href="https://csmore.info"><img src="../WebsiteAssets/Logo.png" height="100" /></a></td>
+									<td nowrap><a href="https://csmore.info">Catallaxy Services</a></td>
+								</tr>
+								<tr>
+									<td><a href="https://curatedsql.com"><img src="../WebsiteAssets/CuratedSQLLogo.png" height="100" /></a></td>
+									<td nowrap><a href="https://curatedsql.com">Curated SQL</a></td>
+								</tr>
+								<tr>
+									<td><a href="https://csmore.info/on/training"><img src="../WebsiteAssets/Teachable.png" height="120" /></a></td>
+									<td nowrap><a href="https://csmore.info/on/training">Training on Teachable</a></td>
+								</tr>
+							</table>
+						</div>
+						<div class="col">
+							<a href="http://www.twitter.com/feaselkl"><img src="../WebsiteAssets/HeadShot.jpg" height="358" width="315" /></a>
+							<br />
+							<a href="http://www.twitter.com/feaselkl">@feaselkl</a>
+						</div>					
+					</div>
+				</section>
+				
+				<section data-background-image="presentation/assets/background/motivation.jpg" data-background-opacity="0.2">
+					<h3>Motivation</h3>
+					
+					<p>My goals in this talk:</p>
+					
+					<ul>
+						<li>Demonstrate a common programming issue.</li>
+						<li>Explain how Railway-Oriented Programming (ROP) resolves this issue.</li>
+						<li>Explore the ROP metaphor in detail, with examples.</li>
+						<li>Demonstrate examples of handling more complex scenarios with ROP.</li>
+					</ul>
+				</section>
+				
+				<section data-background-image="presentation/assets/background/motivation.jpg" data-background-opacity="0.2">
+					<h3>A Debt of Honor</h3>
+					
+					<p>I am highly indebted to Scott Wlaschin for coming up with the metaphor of Railway-Oriented Programming and doing such a great job taking us through it.</p>
+					
+					<p>My understanding of ROP was derived from Scott and I recommend you dive into his work as well at <a href="https://fsharpforfunandprofit.com/rop/">https://fsharpforfunandprofit.com/rop/</a>.</p>
+				</section>
+				
+				<section data-background-image="presentation/assets/image/Bubbles.jpg" data-background-opacity="0.4">
+					<h3>Agenda</h3>
+					
+					<ol>
+						<li class="active">A Simple Example</li>
+						<li>Railway-Oriented Programming</li>
+						<li>Multi-Output Functions</li>
+						<li>Composing Functions</li>
+						<li>Incorporating Non-Standard Functions</li>
+					</ol>
+				</section>
+				
+				<section data-background-image="presentation/assets/background/agenda.jpg" data-background-opacity="0.2">
+					<h3>A Simple Example</h3>
+					
+					<p><em>As a user, I want to update my name and e-mail address.</em></p>
+
+					<ul>
+						<li>Receive request</li>
+						<li>Validate and canonicalize request</li>
+						<li>Update existing user record</li>
+						<li>Send verification e-mail</li>
+						<li>Return result to user</li>
+					</ul>
+				</section>
+				
+				<section data-background-image="presentation/assets/image/Bubbles.jpg" data-background-opacity="0.4">
+					<h3>C# Version</h3>
+					
+					<pre><code data-line-numbers="|3|4|5|6|7|8" data-trim><script type="text/template">
+					string UpdateCustomer()
+					{
+						var request = ReceiveRequest();
+						validateRequest(request);
+						canonicalizeEmail(request);
+						db.updateDbFromRequest(request);
+						smtpServer.sendEmail(request.Email);
+						return "Success";
+					}
+					</script></code></pre>
+				</section>
+				
+				<section data-background-image="presentation/assets/image/Bubbles.jpg" data-background-opacity="0.4">
+					<h3>F# Version</h3>
+					
+					<pre><code data-line-numbers="|2|3|4|5|6|7" data-trim><script type="text/template">
+					let updateCustomer =
+						receiveRequest
+						>> validateRequest
+						>> canonicalizeEmail
+						>> updateDbFromRequest
+						>> sendEmail
+						>> returnMessage
+					</script></code></pre>
+				</section>
+				
+				<section data-background-image="presentation/assets/background/monkey-thinking.jpg" data-background-opacity="0.2">
+					<h3>A Less Simple Example</h3>
+					
+					<p>As a user, I want to update my name and e-mail address <em>and see meaningful error messages on failure</em>.</p>
+					
+					<table style="font-size:smaller">
+						<thead>
+							<tr>
+								<th style="width:40%">Operation</th>
+								<th>Error Case</th>
+							</tr>
+						</thead>
+						<tbody>
+							<tr>
+								<td>Receive request</td>
+								<td></td>
+							</tr>
+							<tr>
+								<td>Validate and canonicalize request</td>
+								<td>Error if name is blank or e-mail address is not valid</td>
+							</tr>
+							<tr>
+								<td>Update existing user record</td>
+								<td>Error if user is missing or the database operation fails</td>
+							</tr>
+							<tr>
+								<td>Send verification e-mail</td>
+								<td>Error if there is an authorization error or a timeout</td>
+							</tr>
+							<tr>
+								<td>Return result to user</td>
+								<td></td>
+							</tr>
+						</tbody>
+					</table>
+				</section>
+				
+				<section data-background-image="presentation/assets/image/Bubbles.jpg" data-background-opacity="0.4">
+					<h3>C# Version</h3>
+					
+					<pre><code data-line-numbers="|3|4-7|8|9-16|17-20|21" data-trim><script type="text/template">
+					string UpdateCustomer()
+					{
+						var request = ReceiveRequest();
+						var isValidated = validateRequest(request);
+						if (!isValidated) {
+							return "Request is not valid";
+						}
+						canonicalizeEmail(request);
+						var result = db.updateDbFromRequest(request);
+						try {
+							if (!result) {
+								return "Customer record not found";
+							}
+						} catch {
+							return "Database error:  Customer record not updated";
+						}
+						var sentEmail = smtpServer.sendEmail(request.Email);
+						if (!sentEmail) {
+							return "Customer email not sent";
+						}
+						return "Success";
+					}
+					</script></code></pre>
+				</section>
+				
+				<section data-background-image="presentation/assets/image/Bubbles.jpg" data-background-opacity="0.4">
+					<h3>F# Version</h3>
+					
+					<pre><code data-trim><script type="text/template">
+					let updateCustomer =
+						receiveRequest
+						>> validateRequest
+						>> canonicalizeEmail
+						>> updateDbFromRequest
+						>> sendEmail
+						>> returnMessage
+					</script></code></pre>
+				</section>
+				
+				<section data-background-image="presentation/assets/image/Bubbles.jpg" data-background-opacity="0.4">
+					<h3>Agenda</h3>
+					
+					<ol>
+						<li>A Simple Example</li>
+						<li class="active">Multi-Output Functions</li>
+						<li>Railway-Oriented Programming</li>
+						<li>Composing Functions</li>
+						<li>Incorporating Non-Standard Functions</li>
+					</ol>
+				</section>
+				
+				<section data-background-image="presentation/assets/image/Bubbles.jpg" data-background-opacity="0.4">
+					<h3>Visualizing Our Scenario</h3>
+					
+					<p>The "happy path" scenario for our process is straightforward.</p>
+
+					<img src="presentation/assets/image/HappyPath.png" />
+				</section>
+				
+				<section data-background-image="presentation/assets/image/Bubbles.jpg" data-background-opacity="0.4">
+					<h3>Visualizing Our Scenario</h3>
+					
+					<p>As we think about handling errors, however, this gets messy!</p>
+
+					<img src="presentation/assets/image/UnhappyPath.png" />
+				</section>
+				
+				<section data-background-image="presentation/assets/image/Bubbles.jpg" data-background-opacity="0.4">
+					<h3>Multi-Output Functions</h3>
+					
+					<div class="container">
+						<div class="col">
+							<p>How can this function have multiple outputs?</p>
+							
+							<img src="presentation/assets/image/UnhappyPath.png" />
+						</div>
+						<div class="col">
+							<pre><code data-trim><script type="text/template">
+							type Result =
+								| Success
+								| ValidationError
+								| UpdateError
+								| SmtpError
+							</script></code></pre>
+							
+							<p>This works, but think about having hundres of errors.  Not sustainable!</p>
+						</div>					
+					</div>
+				</section>
+				
+				<section data-background-image="presentation/assets/image/Bubbles.jpg" data-background-opacity="0.4">
+					<h3>Multi-Output Functions</h3>
+					
+					<div class="container">
+						<div class="col">
+							<p>How can this function have multiple outputs?</p>
+							
+							<img src="presentation/assets/image/UnhappyPath.png" />
+						</div>
+						<div class="col">
+							<pre><code data-trim><script type="text/template">
+							type Result =
+								| Success
+								| Failure
+							</script></code></pre>
+							
+							<p>Much better, but how do we send information back to callers, especially on failure?</p>
+						</div>					
+					</div>
+				</section>
+				
+				<section data-background-image="presentation/assets/image/Bubbles.jpg" data-background-opacity="0.4">
+					<h3>Multi-Output Functions</h3>
+					
+					<div class="container">
+						<div class="col">
+							<p>How can this function have multiple outputs?</p>
+							
+							<img src="presentation/assets/image/UnhappyPath.png" />
+						</div>
+						<div class="col">
+							<pre><code data-trim><script type="text/template">
+							type Result<'TEntity> =
+								| Success of 'TEntity
+								| Failure of String
+							</script></code></pre>
+							
+							<p>On success, return a thing.  On failure, return an error message.</p>
+						</div>					
+					</div>
+				</section>
+				
+				<section data-background-image="presentation/assets/image/Bubbles.jpg" data-background-opacity="0.4">
+					<h3>Domain Primitives</h3>
+					
+					<p>We can move some of the failure checking in F# into the domain model.  For example, suppose we lay out common errors:</p>
+
+					<pre><code data-trim><script type="text/template">
+					type StringError =
+						| Missing
+						| MayNotBeLongerThan of int
+						| DoesNotMatchPattern of string
+						| HasInvalidEncoding of EncodingType
+						
+					type IntegerError =
+						| Missing
+						| MustBeNaturalNumber
+						| MustBeWholeNumber
+						| MustBeNegativeNumber
+					</script></code></pre>
+				</section>
+				
+				<section data-background-image="presentation/assets/image/Bubbles.jpg" data-background-opacity="0.4">
+					<h3>Domain Primitives</h3>
+					
+					<p>We can also create some simple functions to determine whether we are on the Success or Failure track:</p>
+
+					<pre><code data-trim><script type="text/template">
+					let succeed x =
+						Success (x, [])
+						
+					let succeedWithMsg x msg =
+						Success (x, [msg])
+						
+					let fail msg =
+						Failure [msg]
+					</script></code></pre>
+				</section>
+				
+				<section data-background-image="presentation/assets/image/Bubbles.jpg" data-background-opacity="0.4">
+					<h3>Domain Primitives</h3>
+					
+					<p>These allow us to create <strong>domain primitives</strong>, domain-level entities which describe facts about our world.</p>
+
+					<pre><code data-trim><script type="text/template">
+					module ClientID =
+						type T = ClientID of int
+						
+						let create (i: int) =
+							if (i < 1) then
+								fail MustBeNaturalNumber
+							else
+								succeed (ClientID i)
+						
+						// Use apply to convert a raw int to a ClientID or fail trying.
+						let apply f (ClientID i) =
+							f i
+					</script></code></pre>
+				</section>
+				
+				<section data-background-image="presentation/assets/image/Bubbles.jpg" data-background-opacity="0.4">
+					<h3>Summarizing the Answer</h3>
+
+					<img src="presentation/assets/image/UnhappyPath.png" height = "200" />
+					
+					<ul>
+						<li>A use case is a function.</li>
+						<li>A function return a sum type with one of two cases:  Success or Failure.</li>
+						<li>The use case is built up of smaller functions:  steps in a data flow.</li>
+						<li>The errors of each step are combined into a single failure path.</li>
+					</ul>
+					
+					<p>...so how do we do it?</p>
+				</section>
+				
+				<section data-background-image="presentation/assets/image/Bubbles.jpg" data-background-opacity="0.4">
+					<h3>Agenda</h3>
+					
+					<ol>
+						<li>A Simple Example</li>
+						<li>Multi-Output Functions</li>
+						<li class="active">Railway-Oriented Programming</li>
+						<li>Composing Functions</li>
+						<li>Incorporating Non-Standard Functions</li>
+					</ol>
+				</section>
+				
+				<section data-background-image="presentation/assets/image/Bubbles.jpg" data-background-opacity="0.4">
+					<h3>Functions on Rails</h3>
+					
+					<img src="presentation/assets/image/PuppyToDog.png" />
+				</section>
+				
+				<section data-background-image="presentation/assets/image/Bubbles.jpg" data-background-opacity="0.4">
+					<h3>Functions on Rails</h3>
+					
+					<img src="presentation/assets/image/PuppyToDogToCat.png" />
+				</section>
+				
+				<section data-background-image="presentation/assets/image/Bubbles.jpg" data-background-opacity="0.4">
+					<h3>Wait, What?</h3>
+					
+					<img src="presentation/assets/image/IsCatNow.png" height="550" />
+				</section>
+				
+				<section data-background-image="presentation/assets/image/Bubbles.jpg" data-background-opacity="0.4">
+					<h3>Functions on Rails</h3>
+
+					<img src="presentation/assets/image/PuppyToDogToCat.png" />
+
+					<img src="presentation/assets/image/PuppyToCat.png" height="250" />
+				</section>
+				
+				<section data-background-image="presentation/assets/image/Bubbles.jpg" data-background-opacity="0.4">
+					<h3>Validating Inputs</h3>
+				
+					<img src="presentation/assets/image/ValidateFunction.png" height="225" />
+					
+					<pre><code data-line-numbers="|2-3|4-5|6-7" data-trim><script type="text/template">
+					let validateInput input =
+						if input.name = "" then
+							Failure "Name must not be blank"
+						else if input.email = "" then
+							Failure "Email must not be blank"
+						else
+							Success input
+					</script></code></pre>
+				</section>
+				
+				<section data-background-image="presentation/assets/image/Bubbles.jpg" data-background-opacity="0.4">
+					<h3>Laying the Track</h3>
+
+					<img src="presentation/assets/image/InputSwitch.png" />
+					
+					<p>The metaphor for this is a switch, breaking off into success and failure paths.</p>
+				</section>
+				
+				<section data-background-image="presentation/assets/image/Bubbles.jpg" data-background-opacity="0.4">
+					<h3>Chaining Functions</h3>
+
+					<img src="presentation/assets/image/ConnectingSwitches.png" />
+					
+					<p>On success, we continue along the track.  On failure, we move down to a separate failure track.</p>
+				</section>
+				
+				<section data-background-image="presentation/assets/image/Bubbles.jpg" data-background-opacity="0.4">
+					<h3>Chaining Functions</h3>
+
+					<img src="presentation/assets/image/ConnectionSwitch.png" />
+					
+					<p>For multiple functions, we maintain the two tracks.  We can move from success to failure, but not the other way.</p>
+				</section>
+				
+				<section data-background-image="presentation/assets/image/Bubbles.jpg" data-background-opacity="0.4">
+					<h3>Chaining Functions</h3>
+
+					<img src="presentation/assets/image/ThreeFunctions.png" />
+					
+					<p>So how does this work with three functions?</p>
+				</section>
+				
+				<section data-background-image="presentation/assets/image/Bubbles.jpg" data-background-opacity="0.4">
+					<h3>Chaining Functions</h3>
+
+					<img src="presentation/assets/image/ThreeFunctionsConnected.png" />
+					
+					<p>The same way that we connect two functions!  We can chain together an indefinite number of functions this way.</p>
+				</section>
+				
+				<section data-background-image="presentation/assets/image/Bubbles.jpg" data-background-opacity="0.4">
+					<h3>Chaining Functions</h3>
+
+					<img src="presentation/assets/image/FunctionsAndSwitches.png" />
+					
+					<p>Each operation contains a switch function:  stay on the Success path or move to the Failure path.</p>
+				</section>
+				
+				<section data-background-image="presentation/assets/image/Bubbles.jpg" data-background-opacity="0.4">
+					<h3>Agenda</h3>
+					
+					<ol>
+						<li>A Simple Example</li>
+						<li>Multi-Output Functions</li>
+						<li>Railway-Oriented Programming</li>
+						<li>Bypassing Downstream Functions on Error</li>
+						<li class="active">Composing Functions</li>
+						<li>Incorporating Non-Standard Functions</li>
+					</ol>
+				</section>
+				
+				<section data-background-image="presentation/assets/image/Bubbles.jpg" data-background-opacity="0.4">
+					<h3>Composing Functions</h3>
+
+					<img src="presentation/assets/image/CompositionSingleTrack.png" />
+					
+					<p>Single-track composition is easy.</p>
+				</section>
+				
+				<section data-background-image="presentation/assets/image/Bubbles.jpg" data-background-opacity="0.4">
+					<h3>Composing Functions</h3>
+
+					<img src="presentation/assets/image/CompositionDualTrack.png" />
+					
+					<p>Two-track composition is easy.</p>
+				</section>
+				
+				<section data-background-image="presentation/assets/image/Bubbles.jpg" data-background-opacity="0.4">
+					<h3>Composing Functions</h3>
+
+					<img src="presentation/assets/image/CompositionSwitch.png" />
+					
+					<p>But our functions are switches, which are <strong>not</strong> composable!</p>
+				</section>
+				
+				<section data-background-image="presentation/assets/image/Bubbles.jpg" data-background-opacity="0.4">
+					<h3>Composing Functions</h3>
+
+					<img src="presentation/assets/image/SwitchTrack.png" height="200" />
+					
+					<p>We need some sort of adapter block which transforms our switch into a two-track operation.</p>
+				</section>
+				
+				<section data-background-image="presentation/assets/image/Bubbles.jpg" data-background-opacity="0.4">
+					<h3>Composing Functions</h3>
+					
+					<img src="presentation/assets/image/SwitchTrack.png" height="200" />
+					
+					<pre><code data-line-numbers="|1|2|3|4|" data-trim><script type="text/template">
+					let bind switchFunction twoTrackInput =
+						match twoTrackInput with
+						| Success s -> switchFunction s
+						| Failure f -> Failure f
+						
+					bind : ('a -> TwoTrack<'b>) -> TwoTrack<'a> -> TwoTrack<'b>
+					</script></code></pre>
+				</section>
+				
+				<section data-background-image="presentation/assets/image/Bubbles.jpg" data-background-opacity="0.4">
+					<h3>Bind</h3>
+					
+					<pre><code data-trim><script type="text/template">
+							let nameNotBlank input =
+								if input.name = "" then
+									Failure "Name must not be blank"
+								else Success input
+							</script></code></pre>
+					
+					<img src="presentation/assets/image/InputSwitchBlank.png" height="150" />
+				</section>
+				
+				<section data-background-image="presentation/assets/image/Bubbles.jpg" data-background-opacity="0.4">
+					<h3>Bind</h3>
+					
+					<pre><code data-trim><script type="text/template">
+					let name50 input =
+						if input.name.Length > 50 then
+							Failure "Name must not be longer than 50 characters"
+						else Success input
+					</script></code></pre>
+					
+					<img src="presentation/assets/image/InputSwitchBlank.png" height="150" />
+				</section>
+				
+				<section data-background-image="presentation/assets/image/Bubbles.jpg" data-background-opacity="0.4">
+					<h3>Bind</h3>
+					
+					<pre><code data-trim><script type="text/template">
+					let emailNotBlank input =
+						if input.email = "" then
+							Failure "E-mail address must not be blank"
+						else Success input
+					</script></code></pre>
+					
+					<img src="presentation/assets/image/InputSwitchBlank.png" height="150" />
+				</section>
+				
+				<section data-background-image="presentation/assets/image/Bubbles.jpg" data-background-opacity="0.4">
+					<h3>Composing Functions</h3>
+
+					<img src="presentation/assets/image/ValidationFunctionTrack.png" />
+					
+					<pre><code data-line-numbers="|1|2|3" data-trim><script type="text/template">
+					bind nameNotBlank
+					>> bind name50
+					>> bind emailNotBlank
+					</script></code></pre>
+				</section>
+				
+				<section data-background-image="presentation/assets/image/Bubbles.jpg" data-background-opacity="0.4">
+					<h3>Composing Functions</h3>
+
+					<img src="presentation/assets/image/ValidateRequest.png" />
+					
+					<pre><code data-trim><script type="text/template">
+					let validateRequest twoTrackInput =
+						twoTrackInput
+						>> bind nameNotBlank
+						>> bind name50
+						>> bind emailNotBlank
+						
+					validateRequest : TwoTrack<Request> -> TwoTrack<Request>
+					</script></code></pre>
+				</section>
+				
+				<section data-background-image="presentation/assets/image/Bubbles.jpg" data-background-opacity="0.4">
+					<h3>Agenda</h3>
+					
+					<ol>
+						<li>A Simple Example</li>
+						<li>Multi-Output Functions</li>
+						<li>Railway-Oriented Programming</li>
+						<li>Bypassing Downstream Functions on Error</li>
+						<li>Composing Functions</li>
+						<li class="active">Incorporating Non-Standard Functions</li>
+					</ol>
+				</section>
+				
+				<section data-background-image="presentation/assets/image/Bubbles.jpg" data-background-opacity="0.4">
+					<h3>Single-Track Functions</h3>
+
+					<img src="presentation/assets/image/CanonicalizeEmail.png" height="200" />
+					
+					<pre><code data-trim><script type="text/template">
+					let canonicalizeEmail input =
+						{ input with email = input.email.Trim().ToLower() }
+					</script></code></pre>
+				</section>
+				
+				<section data-background-image="presentation/assets/image/Bubbles.jpg" data-background-opacity="0.4">
+					<h3>Converting Single-Track Functions</h3>
+
+					<img src="presentation/assets/image/ConvertOneTrackFunction.png" height="250" />
+					
+					<pre><code data-trim><script type="text/template">
+					let map singleTrackFunction twoTrackInput =
+						bind (singleTrackFunction >> Success)
+						
+					map : ('a -> 'b) -> TwoTrack<'a> -> TwoTrack<'b>
+					</script></code></pre>
+				</section>
+				
+				<section data-background-image="presentation/assets/image/Bubbles.jpg" data-background-opacity="0.4">
+					<h3>Converting Single-Track Functions</h3>
+
+					<img src="presentation/assets/image/OneTrackComposes.png" height="250" />
+					
+					<p>This function now composes successfully.</p>
+				</section>
+				
+				<section data-background-image="presentation/assets/image/Bubbles.jpg" data-background-opacity="0.4">
+					<h3>Getting To Two Tracks</h3>
+
+					<p>This also allows us to start with a non-ROP entity (such as a string from an external caller) and move it onto the rails:</p>
+					
+					<pre><code data-line-numbers="|1-5|7-8|9-12|" data-trim><script type="text/template">
+					let createClientID clientid =
+						let map = function
+							| IntegerError.Missing -> ClientIsRequired
+							| MustBeNaturalNumber _ -> ClientIdMustBeNaturalNumber
+						ClientID.create clientid |> mapMessagesR map // create messages on failure
+					
+					dirtyClientID
+					>> map createClientID
+					>> bind LookUpClientDetails
+					>> bind CheckForAlerts
+					>> bind QueueAlerts
+					>> bind SendAlerts
+					</script></code></pre>
+				</section>
+				
+				<section data-background-image="presentation/assets/image/Bubbles.jpg" data-background-opacity="0.4">
+					<h3>Dead-End Functions</h3>
+
+					<img src="presentation/assets/image/DeadEndFunction.png" height="225" />
+					
+					<pre><code data-trim><script type="text/template">
+					let updateDb request =
+						(* Perform DB operations *)
+						(* No return value *)
+					</script></code></pre>
+				</section>
+				
+				<section data-background-image="presentation/assets/image/Bubbles.jpg" data-background-opacity="0.4">
+					<h3>Converting Dead-End Functions</h3>
+
+					<img src="presentation/assets/image/TeeOperation.png" height="225" />
+					
+					<pre><code data-trim><script type="text/template">
+					let tee deadEndFunction oneTrackInput =
+						deadEndFunction oneTrackInput
+						oneTrackInput
+						
+					tee : ('a -> unit) -> 'a -> 'a
+					</script></code></pre>
+				</section>
+				
+				<section data-background-image="presentation/assets/image/Bubbles.jpg" data-background-opacity="0.4">
+					<h3>Converting Dead-End Functions</h3>
+					
+					<img src="presentation/assets/image/TeeOperationComposes.png" height="225" />
+					
+					<p>Map + Tee = Composition</p>
+				</section>
+				
+				<section data-background-image="presentation/assets/image/Bubbles.jpg" data-background-opacity="0.4">
+					<h3>Exceptional Functions</h3>
+					
+					<p>When dealing with exceptions, convert them to <code>Failure</code>s.</p>
+					
+					<pre><code data-trim><script type="text/template">
+					let trySomethingIO input =
+						try
+						{
+							doSomething input
+						}
+						catch
+						{
+							Failure "Nope, this didn't work out quite right"
+						}
+					</script></code></pre>
+				</section>
+
+				<section data-background-image="presentation/assets/background/wrappingup.jpg" data-background-opacity="0.2">
+					<h3>Wrapping Up</h3>
+
+					<p>Over the course of this talk, we have looked at the Railway-Oriented Programming metaphor for the Either monad.  We have seen the basics of implementation, as well as how to solve several common problems with the process.</p>
+					
+					<p>Be sure to check out Scott Wlaschin's full set of resources at <a href="https://fsharpforfunandprofit.com/rop/">https://fsharpforfunandprofit.com/rop/</a>.</p>
+				</section>
+				
+				<section data-background-image="presentation/assets/image/Bubbles.jpg" data-background-opacity="0.4">
+					<h3>Wrapping Up</h3>
+					
+					<p>
+						To learn more, go here:
+						<br />
+						<a href="https://csmore.info/on/rop">https://csmore.info/on/rop</a>
+					</p>
+					<br />
+					<p>
+						And for help, contact me:
+						<br />
+						<a href="mailto:feasel@catallaxyservices.com">feasel@catallaxyservices.com</a> | <a href="https://www.twitter.com/feaselkl">@feaselkl</a>
+					</p>
+					<br />
+					<p>
+						Catallaxy Services consulting:
+						<br />
+						<a href="https://csmore.info/contact">https://CSmore.info/on/contact</a>
+					</p>
+				</section>
+			</div>
+		</div>
+
+		<script src="../reveal.js/dist/reveal.js"></script>
+		<script src="../reveal.js/plugin/zoom/zoom.js"></script>
+		<script src="../reveal.js/plugin/notes/notes.js"></script>
+		<script src="../reveal.js/plugin/search/search.js"></script>
+		<script src="../reveal.js/plugin/markdown/markdown.js"></script>
+		<script src="../reveal.js/plugin/math/math.js"></script>
+		<script src="../reveal.js/plugin/menu/menu.js"></script>
+		<script src="../reveal.js/plugin/highlight/highlight.js"></script>
+		<script src="../reveal.js/plugin/chart/Chart.min.js"></script>
+		<script src="../reveal.js/plugin/chart/plugin.js"></script>
+		<script>
+			// More info about initialization & config:
+			// - https://revealjs.com/initialization/
+			// - https://revealjs.com/config/
+			Reveal.initialize({
+				width: '70%',
+				controls: true,
+				progress: true,
+				center: true,
+				hash: true,
+				transition: 'fade',
+				
+
+				// Learn about plugins: https://revealjs.com/plugins/
+				plugins: [ RevealZoom, RevealNotes, RevealSearch, RevealMarkdown, RevealHighlight, RevealMath, RevealMenu, RevealChart ]
+			});
+		</script>
+	</body>
+</html>
